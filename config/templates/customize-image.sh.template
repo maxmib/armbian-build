@@ -25,6 +25,7 @@ Main() {
 			;;
 		buster)
 			# your code here
+			Installdosfstools
 			;;
 		bullseye)
 			# your code here
@@ -240,5 +241,12 @@ InstallAdvancedDesktop()
 	[[ -f /usr/share/doc/avahi-daemon/examples/ssh.service ]] && cp /usr/share/doc/avahi-daemon/examples/ssh.service /etc/avahi/services/
 	apt clean
 } # InstallAdvancedDesktop
+
+Installdosfstools()
+{
+	apt update
+	apt-get install -yy dosfstools
+	apt clean
+} # Installdosfstools
 
 Main "$@"
