@@ -36,8 +36,8 @@ echo "Create MAC: ${MAC}"
 echo "Start create MBR and partittion"
 
 parted -s "${DEV_EMMC}" mklabel msdos
-parted -s "${DEV_EMMC}" mkpart primary fat32 108M 620M
-parted -s "${DEV_EMMC}" mkpart primary ext4  724M 100%
+parted -s "${DEV_EMMC}" mkpart primary fat32 108M 236M
+parted -s "${DEV_EMMC}" mkpart primary ext4  256M 100%
 
 echo "Start restore u-boot"
 
@@ -157,4 +157,4 @@ echo "*******************************************"
 echo "Complete copy OS to eMMC "
 echo "*******************************************"
 
-shutdown -h now
+#shutdown -h now
