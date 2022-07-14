@@ -71,7 +71,7 @@ echo "done."
 mount -o rw $PART_BOOT $DIR_INSTALL
 
 echo -n "Cppying BOOT..."
-cp -r /boot/* $DIR_INSTALL && cp -p $INSTALL_PATH/s805_autoscript* $DIR_INSTALLcp -p $INSTALL_PATH/uEnv.txt $DIR_INSTALL && sync
+cp -r /boot/* $DIR_INSTALL && cp -p $INSTALL_PATH/s805_autoscript* $DIR_INSTALL && cp -p $INSTALL_PATH/uEnv.txt $DIR_INSTALL && sync
 echo "done."
 
 echo -n "Edit init config..."
