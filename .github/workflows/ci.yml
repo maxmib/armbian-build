@@ -17,7 +17,7 @@ jobs:
           - buster # Debian 10
         TYPE:
           - minimal
-          - cli
+        
 
 
 
@@ -30,7 +30,7 @@ jobs:
       - name: Build
         run: |
           sudo ./compile.sh \
-            BOARD=onecloud \
+            BOARD=s805 \
             BRANCH=${{ matrix.BRANCH }} \
             RELEASE=${{ matrix.RELEASE }} \
             KERNEL_CONFIGURE=no \
