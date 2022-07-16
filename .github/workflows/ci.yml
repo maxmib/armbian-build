@@ -19,8 +19,6 @@ jobs:
           - minimal
         
 
-
-
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -37,9 +35,6 @@ jobs:
             KERNEL_ONLY=no \
             BUILD_MINIMAL=${{ matrix.TYPE == 'minimal' && 'yes' || 'no' }} \
             BUILD_DESKTOP=${{ matrix.TYPE == 'desktop' && 'yes' || 'no' }} \
-            DESKTOP_ENVIRONMENT=${{ matrix.DESKTOP_ENVIRONMENT }} \
-            DESKTOP_ENVIRONMENT_CONFIG_NAME=${{ matrix.DESKTOP_ENVIRONMENT_CONFIG_NAME }} \
-            DESKTOP_APPGROUPS_SELECTED=${{ matrix.DESKTOP_APPGROUPS_SELECTED }} \
             EXPERT=yes \
             USE_CCACHE=no \
             NO_APT_CACHER=yes \
