@@ -30,7 +30,7 @@ jobs:
       - name: Build
         run: |
           sudo ./compile.sh \
-            BOARD=s805 \
+            BOARD=aml-s805 \
             BRANCH=${{ matrix.BRANCH }} \
             RELEASE=${{ matrix.RELEASE }} \
             KERNEL_CONFIGURE=no \
