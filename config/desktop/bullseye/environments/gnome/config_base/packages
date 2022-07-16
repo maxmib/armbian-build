@@ -8,6 +8,7 @@ cups
 dbus-x11
 dictionaries-common
 dmz-cursor-theme
+eject
 evolution-data-server
 evolution-data-server-common
 fonts-freefont-ttf
@@ -61,9 +62,9 @@ gnome-shell-common
 gnome-shell-extension-appindicator
 gnome-shell-extension-desktop-icons
 gnome-shell-extension-trash
+gnome-terminal
 gvfs-backends
 gvfs-bin
-hunspell-en-us
 inputattach
 inxi
 libaccountsservice0
@@ -157,10 +158,12 @@ libxtst6
 libxxf86dga1
 libyelp0
 lightdm
+lightdm-settings
 mutter
 mutter-common
 nautilus
 nautilus-data
+network-manager-openvpn-gnome
 openprinting-ppds
 p11-kit
 p11-kit-modules
@@ -202,7 +205,6 @@ xdg-desktop-portal
 xdg-user-dirs
 xdg-user-dirs-gtk
 xfonts-base
-xinit
 xinput
 xorg
 xorg-docs-core

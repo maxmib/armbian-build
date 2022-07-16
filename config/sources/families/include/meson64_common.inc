@@ -24,13 +24,14 @@ case $BRANCH in
 	
 	legacy)
 		KERNELSOURCE='https://github.com/hardkernel/linux'
-		KERNELBRANCH='branch:odroidg12-4.9.y'
+		#KERNELBRANCH='branch:odroidg12-4.9.y'
+		KERNELBRANCH='tag:4.9.277-122'
 		KERNELDIR='linux-odroid'
 	;;
 
         current)
-                KERNELBRANCH='branch:linux-5.10.y'
-                KERNELPATCHDIR='meson64-current'
+		KERNELBRANCH='branch:linux-5.10.y'
+		KERNELPATCHDIR='meson64-current'
         ;;
 
         edge)
@@ -261,8 +262,6 @@ family_tweaks_bsp()
 {
 	mkdir -p $destination/etc/udev/rules.d
 	mkdir -p $destination/usr/local/bin
-	cp $SRC/packages/bsp/rockchip/hdmi.rules $destination/etc/udev/rules.d
-	install -m 755 $SRC/packages/bsp/rockchip/hdmi-hotplug $destination/usr/local/bin
 
 	mkdir -p "$destination"/etc/X11/xorg.conf.d
 	case "${BOARD}" in

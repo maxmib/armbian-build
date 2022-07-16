@@ -484,9 +484,6 @@ fetch_from_repo()
 		local workdir=$dir
 	fi
 
-	# Declare folders we use as safe
-	git config --global --add safe.directory "${SRC}/cache/sources/$workdir"
-
 	mkdir -p "${SRC}/cache/sources/${workdir}" 2>/dev/null || \
 		exit_with_error "No path or no write permission" "${SRC}/cache/sources/${workdir}"
 
@@ -663,7 +660,7 @@ fingerprint_image()
 	Title:			${VENDOR} $REVISION ${BOARD^} $BRANCH
 	Kernel:			Linux $VER
 	Build date:		$(date +'%d.%m.%Y')
-	Builder rev:	$(git rev-parse HEAD)
+	Builder rev:		$BUILD_REPOSITORY_COMMIT
 	Maintainer:		$MAINTAINER <$MAINTAINERMAIL>
 	Authors:		https://www.armbian.com/authors
 	Sources: 		https://github.com/armbian/
@@ -905,6 +902,14 @@ addtorepo()
 
 	for release in "${distributions[@]}"; do
 
+		ADDING_PACKAGES="false"
+		if [[ -d "config/distributions/${release}/" ]]; then
+			[[ -n "$(cat config/distributions/${release}/support | grep "csc\|supported" 2>/dev/null)" ]] && ADDING_PACKAGES="true"
+		else
+			display_alert "Skipping adding packages (not supported)" "$release" "wrn"
+			continue
+		fi
+
 		local forceoverwrite=""
 
 		# let's drop from publish if exits
@@ -935,7 +940,7 @@ addtorepo()
 
 		# adding main
 		if find "${DEB_STORAGE}"/ -maxdepth 1 -type f -name "*.deb" 2>/dev/null | grep -q .; then
-			adding_packages "$release" "" "main"
+			[[ "${ADDING_PACKAGES}" == true ]] && adding_packages "$release" "" "main"
 		else
 			aptly repo add -config="${SCRIPTPATH}config/${REPO_CONFIG}" "${release}" "${SCRIPTPATH}config/templates/example.deb" >/dev/null
 		fi
@@ -944,7 +949,7 @@ addtorepo()
 
 		# adding main distribution packages
 		if find "${DEB_STORAGE}/${release}" -maxdepth 1 -type f -name "*.deb" 2>/dev/null | grep -q .; then
-			adding_packages "${release}-utils" "/${release}" "release packages"
+			[[ "${ADDING_PACKAGES}" == true ]] && adding_packages "${release}-utils" "/${release}" "release packages"
 		else
 			# workaround - add dummy package to not trigger error
 			aptly repo add -config="${SCRIPTPATH}config/${REPO_CONFIG}" "${release}" "${SCRIPTPATH}config/templates/example.deb" >/dev/null
@@ -952,7 +957,7 @@ addtorepo()
 
 		# adding release-specific utils
 		if find "${DEB_STORAGE}/extra/${release}-utils" -maxdepth 1 -type f -name "*.deb" 2>/dev/null | grep -q .; then
-			adding_packages "${release}-utils" "/extra/${release}-utils" "release utils"
+			[[ "${ADDING_PACKAGES}" == true ]] && adding_packages "${release}-utils" "/extra/${release}-utils" "release utils"
 		else
 			aptly repo add -config="${SCRIPTPATH}config/${REPO_CONFIG}" "${release}-utils" "${SCRIPTPATH}config/templates/example.deb" >/dev/null
 		fi
@@ -960,7 +965,7 @@ addtorepo()
 
 		# adding desktop
 		if find "${DEB_STORAGE}/extra/${release}-desktop" -maxdepth 1 -type f -name "*.deb" 2>/dev/null | grep -q .; then
-			adding_packages "${release}-desktop" "/extra/${release}-desktop" "desktop"
+			[[ "${ADDING_PACKAGES}" == true ]] && adding_packages "${release}-desktop" "/extra/${release}-desktop" "desktop"
 		else
 			# workaround - add dummy package to not trigger error
 			aptly repo add -config="${SCRIPTPATH}config/${REPO_CONFIG}" "${release}-desktop" "${SCRIPTPATH}config/templates/example.deb" >/dev/null
@@ -1197,13 +1202,14 @@ wait_for_package_manager()
 
 
 
-# Installing debian packages in the armbian build system.
+# Installing debian packages or package files in the armbian build system.
 # The function accepts four optional parameters:
 # autoupdate - If the installation list is not empty then update first.
 # upgrade, clean - the same name for apt
 # verbose - detailed log for the function
 #
 # list="pkg1 pkg2 pkg3 pkgbadname pkg-1.0 | pkg-2.0 pkg5 (>= 9)"
+# or list="pkg1 pkg2 /path-to/output/debs/file-name.deb"
 # install_pkg_deb upgrade verbose $list
 # or
 # install_pkg_deb autoupdate $list
@@ -1218,7 +1224,9 @@ wait_for_package_manager()
 install_pkg_deb ()
 {
 	local list=""
+	local listdeb=""
 	local log_file
+	local add_for_install
 	local for_install
 	local need_autoup=false
 	local need_upgrade=false
@@ -1230,7 +1238,12 @@ install_pkg_deb ()
 	local tmp_file=$(mktemp /tmp/install_log_XXXXX)
 	export DEBIAN_FRONTEND=noninteractive
 
-	list=$(
+	if [ -d $(dirname $LOG_OUTPUT_FILE) ]; then
+		log_file=${LOG_OUTPUT_FILE}
+	else
+		log_file="${SRC}/output/${LOG_SUBPATH}/install.log"
+	fi
+
 	for p in $*;do
 		case $p in
 			autoupdate) need_autoup=true; continue ;;
@@ -1238,21 +1251,32 @@ install_pkg_deb ()
 			clean) need_clean=true; continue ;;
 			verbose) need_verbose=true; continue ;;
 			\||\(*|*\)) continue ;;
+			*[.]deb) listdeb+=" $p"; continue ;;
+			*) list+=" $p" ;;
 		esac
-		echo " $p"
 	done
-	)
-
-	if [ -d $(dirname $LOG_OUTPUT_FILE) ]; then
-		log_file=${LOG_OUTPUT_FILE}
-	else
-		log_file="${SRC}/output/${LOG_SUBPATH}/install.log"
-	fi
 
 	# This is necessary first when there is no apt cache.
 	if $need_upgrade; then
 		apt-get -q update || echo "apt cannot update" >>$tmp_file
 		apt-get -y upgrade || echo "apt cannot upgrade" >>$tmp_file
+	fi
+
+	# Install debian package files
+	if [ -n "$listdeb" ];then
+		for f in $listdeb;do
+			# Calculate dependencies for installing the package file
+			add_for_install=" $(
+				dpkg-deb -f $f Depends | awk '{gsub(/[,]/, "", $0); print $0}'
+			)"
+
+			echo -e "\nfile $f depends on:\n$add_for_install"  >>$log_file
+			install_pkg_deb $add_for_install
+			dpkg -i $f 2>>$log_file
+			dpkg-query -W \
+					   -f '${binary:Package;-27} ${Version;-23}\n' \
+					   $(dpkg-deb -f $f Package) >>$log_file
+		done
 	fi
 
 	# If the package is not installed, check the latest
@@ -1374,9 +1398,9 @@ prepare_host()
 	build-essential  ca-certificates ccache cpio cryptsetup curl              \
 	debian-archive-keyring debian-keyring debootstrap device-tree-compiler    \
 	dialog dirmngr dosfstools dwarves f2fs-tools fakeroot flex gawk           \
-	gcc-arm-linux-gnueabi gcc-aarch64-linux-gnu gdisk gpg                     \
+	gcc-arm-linux-gnueabi gcc-aarch64-linux-gnu gdisk gpg busybox             \
 	imagemagick jq kmod libbison-dev libc6-dev-armhf-cross libcrypto++-dev    \
-	libelf-dev libfdt-dev libfile-fcntllock-perl                              \
+	libelf-dev libfdt-dev libfile-fcntllock-perl parallel libmpc-dev          \
 	libfl-dev liblz4-tool libncurses-dev libpython2.7-dev libssl-dev          \
 	libusb-1.0-0-dev linux-base locales lzop ncurses-base ncurses-term        \
 	nfs-kernel-server ntpdate p7zip-full parted patchutils pigz pixz          \
@@ -1595,11 +1619,28 @@ prepare_host()
 
 function webseed ()
 {
+
 	# list of mirrors that host our files
 	unset text
-	# Hardcoded to EU mirrors since
 	local CCODE=$(curl -s redirect.armbian.com/geoip | jq '.continent.code' -r)
-	WEBSEED=($(curl -s https://redirect.armbian.com/mirrors | jq -r '.'${CCODE}' | .[] | values'))
+
+	if [[ "$2" == "rootfs" ]]; then
+		WEBSEED=($(curl -s ${1}mirrors | jq -r '.'${CCODE}' | .[] | values'))
+		else
+		WEBSEED=($(curl -s https://redirect.armbian.com/mirrors | jq -r '.'${CCODE}' | .[] | values'))
+	fi
+
+	# remove dead mirrors to suppress download errors
+	while read -r line
+	do
+		REMOVE=$(echo $line | egrep -o 'https?://[^ ]+/')
+		WEBSEED=( "${WEBSEED[@]/$REMOVE}" )
+	done < <(
+	for k in ${WEBSEED[@]}
+	do
+	echo "$k$2/$3"
+	done | parallel --halt soon,fail=10 --jobs 32 wget -q --spider --timeout=15 --tries=4 --retry-connrefused {} 2>&1 >/dev/null)
+
 	# aria2 simply split chunks based on sources count not depending on download speed
 	# when selecting china mirrors, use only China mirror, others are very slow there
 	if [[ $DOWNLOAD_MIRROR == china ]]; then
@@ -1611,8 +1652,9 @@ function webseed ()
 		https://mirrors.bfsu.edu.cn/armbian-releases/
 		)
 	fi
+
 	for toolchain in ${WEBSEED[@]}; do
-		text="${text} ${toolchain}${1}"
+		text="${text} ${toolchain}"$2/"${3}"
 	done
 	text="${text:1}"
 	echo "${text}"
@@ -1644,22 +1686,28 @@ download_and_verify()
 	fi
 
 	# switch to china mirror if US timeouts
-	timeout 10 curl --head --fail --silent ${server}${remotedir}/${filename} 2>&1 >/dev/null
+	timeout 10 curl --location --head --fail --silent ${server}${remotedir}/${filename} 2>&1 >/dev/null
 	if [[ $? -ne 7 && $? -ne 22 && $? -ne 0 ]]; then
 		display_alert "Timeout from $server" "retrying" "info"
 		server="https://mirrors.tuna.tsinghua.edu.cn/armbian-releases/"
 
 		# switch to another china mirror if tuna timeouts
-		timeout 10 curl --head --fail --silent ${server}${remotedir}/${filename} 2>&1 >/dev/null
+		timeout 10 curl --location --head --fail --silent ${server}${remotedir}/${filename} 2>&1 >/dev/null
 		if [[ $? -ne 7 && $? -ne 22 && $? -ne 0 ]]; then
 			display_alert "Timeout from $server" "retrying" "info"
 			server="https://mirrors.bfsu.edu.cn/armbian-releases/"
 		fi
 	fi
 
+	# rootfs has its own infra
+	if [[ "${remotedir}" == "_rootfs" ]]; then
+		local server="https://cache.armbian.com/"
+		remotedir="rootfs"
+	fi
 
 	# check if file exists on remote server before running aria2 downloader
-	[[ ! `timeout 10 curl --head --fail --silent ${server}${remotedir}/${filename}` ]] && return
+	timeout 10 curl --location --head --fail --silent ${server}${remotedir}/${filename} 2>&1 >/dev/null
+	[[ $? -ne 0 ]] && return
 
 	cd "${localdir}" || exit
 
@@ -1667,13 +1715,13 @@ download_and_verify()
 	if [[ -f "${SRC}"/config/torrents/${filename}.asc ]]; then
 		local torrent="${SRC}"/config/torrents/${filename}.torrent
 		ln -sf "${SRC}/config/torrents/${filename}.asc" "${localdir}/${filename}.asc"
-	elif [[ ! `timeout 10 curl --head --fail --silent "${server}${remotedir}/${filename}.asc"` ]]; then
+	elif [[ ! `timeout 10 curl --location --head --fail --silent "${server}${remotedir}/${filename}.asc"` ]]; then
 		return
 	else
 		# download control file
 		local torrent=${server}$remotedir/${filename}.torrent
 		aria2c --download-result=hide --disable-ipv6=$DISABLE_IPV6 --summary-interval=0 --console-log-level=error --auto-file-renaming=false \
-		--continue=false --allow-overwrite=true --dir="${localdir}" ${server}${remotedir}/${filename}.asc $(webseed "$remotedir/${filename}.asc") -o "${filename}.asc"
+		--continue=false --allow-overwrite=true --dir="${localdir}" ${server}${remotedir}/${filename}.asc $(webseed "${server}" "${remotedir}" "${filename}.asc") -o "${filename}.asc"
 		[[ $? -ne 0 ]] && display_alert "Failed to download control file" "" "wrn"
 	fi
 
@@ -1702,10 +1750,10 @@ download_and_verify()
 
 	# direct download if torrent fails
 	if [[ ! -f "${localdir}/${filename}.complete" ]]; then
-		if [[ ! `timeout 10 curl --head --fail --silent ${server}${remotedir}/${filename} 2>&1 >/dev/null` ]]; then
+		if [[ ! `timeout 10 curl --location --head --fail --silent ${server}${remotedir}/${filename} 2>&1 >/dev/null` ]]; then
 			display_alert "downloading using http(s) network" "$filename"
 			aria2c --download-result=hide --rpc-save-upload-metadata=false --console-log-level=error \
-			--dht-file-path="${SRC}"/cache/.aria2/dht.dat --disable-ipv6=$DISABLE_IPV6 --summary-interval=0 --auto-file-renaming=false --dir="${localdir}" ${server}${remotedir}/${filename} $(webseed "${remotedir}/${filename}") -o "${filename}"
+			--dht-file-path="${SRC}"/cache/.aria2/dht.dat --disable-ipv6=$DISABLE_IPV6 --summary-interval=0 --auto-file-renaming=false --dir="${localdir}" ${server}${remotedir}/${filename} $(webseed "${server}" "${remotedir}" "${filename}") -o "${filename}"
 			# mark complete
 			[[ $? -eq 0 ]] && touch "${localdir}/${filename}.complete" && echo ""
 
