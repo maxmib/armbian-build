@@ -1,4 +1,4 @@
-name: CI
+name: onecloud
 
 on:
   workflow_dispatch:
@@ -74,7 +74,7 @@ jobs:
         run: |
           time="${{ github.event.head_commit.timestamp }}"
           sha="${GITHUB_SHA:0:8}"
-          tag="fix-vcc_core-temportally-ci-$(date +'%Y%m%d-%H%M' -d "$time")"
+          tag="Onecloud-armbian-$(date +'%Y%m%d-%H%M' -d "$time")"
           message="Onecloud_armbian_CI $(date +'%Y-%m-%d %H:%M' -d "$time")"
           hub release create  -t "$GITHUB_SHA" "$tag" -m "$message" \
             $(for a in artifacts/*/*; do echo -a $a; done) \
