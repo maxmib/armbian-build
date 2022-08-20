@@ -120,11 +120,16 @@ compilation_prepare()
 	# Linux splash file
 	#
 
-	if linux-version compare "${version}" ge 5.10 && [ $SKIP_BOOTSPLASH != yes ]; then
+	if linux-version compare "${version}" ge 5.10 && linux-version compare "${version}" lt 5.19 && [ $SKIP_BOOTSPLASH != yes ]; then
 
 		display_alert "Adding" "Kernel splash file" "info"
 		if linux-version compare "${version}" ge 5.11; then
 			process_patch_file "${SRC}/patch/misc/bootsplash-5.16.y-0000-Revert-fbcon-Avoid-cap-set-but-not-used-warning.patch" "applying"
+		fi
+
+		if ( linux-version compare "${version}" ge 5.18.18 && linux-version compare "${version}" lt 5.19 ) \
+			|| ( linux-version compare "${version}" ge 5.15.61 && linux-version compare "${version}" lt 5.16 ) ; then
+			process_patch_file "${SRC}/patch/misc/0001-Revert-fbcon-Fix-accelerated-fbdev-scrolling-while-logo-is-still-shown.patch" "applying"
 		fi
 
 		process_patch_file "${SRC}/patch/misc/bootsplash-5.16.y-0001-Revert-fbcon-Add-option-to-enable-legacy-hardware-ac.patch" "applying"
@@ -175,7 +180,7 @@ compilation_prepare()
 	#
 	# Older versions have AUFS support with a patch
 
-	if linux-version compare "${version}" gt 5.11 && linux-version compare "${version}" lt 5.19 && [ "$AUFS" == yes ]; then
+	if linux-version compare "${version}" gt 5.11 && linux-version compare "${version}" lt 5.20 && [ "$AUFS" == yes ]; then
 
 		# attach to specifics tag or branch
 		local aufstag
@@ -368,7 +373,7 @@ compilation_prepare()
 	if linux-version compare "${version}" ge 3.14 && [ "$EXTRAWIFI" == yes ]; then
 
 		# attach to specifics tag or branch
-		local rtl8812auver="branch:v5.6.4.2"
+		local rtl8812auver="commit:41532e3b16dcf27f06e6fe5a26314f3aa24d4f87"
 
 		display_alert "Adding" "Wireless drivers for Realtek 8811, 8812, 8814 and 8821 chipsets ${rtl8812auver}" "info"
 
@@ -398,7 +403,8 @@ compilation_prepare()
 
 
 	# Wireless drivers for Xradio XR819 chipsets
-	if linux-version compare "${version}" ge 4.19 && [[ "$LINUXFAMILY" == sunxi* ]] && [[ "$EXTRAWIFI" == yes ]]; then
+	if linux-version compare "${version}" ge 4.19 && linux-version compare "${version}" le 5.19 && \
+		[[ "$LINUXFAMILY" == sunxi* ]] && [[ "$EXTRAWIFI" == yes ]]; then
 
 		display_alert "Adding" "Wireless drivers for Xradio XR819 chipsets" "info"
 
